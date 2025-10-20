@@ -31,7 +31,6 @@ def fetch_number_of_ads(url):
     number_of_ads = list(json_data_total.values())[0]
     return number_of_ads
 
-@st.cache_data
 def number_of_ads(ssyk_id, word = None):
     base = "https://jobsearch.api.jobtechdev.se/search?"
     end = "&limit=0"
