@@ -1,4 +1,5 @@
 import streamlit as st
+import requests
 import json
 import re
 
@@ -10,7 +11,7 @@ def import_data(filename):
     return output
 
 def show_initial_information():
-    st.title(":primary[Platsbanken - Närliggande yrken]")
+    st.title(":blue[Platsbanken - Närliggande yrken]")
 
 def initiate_session_state():
     if "occupationdata" not in st.session_state:
@@ -21,6 +22,28 @@ def initiate_session_state():
         st.session_state.similar_occupations = import_data("data/shortenSimilarData.json")
     if "occupation_keywords" not in st.session_state:
         st.session_state.occupation_keywords = import_data("data/shortenKeywordsData.json")
+
+def fetch_number_of_ads(url):
+    response = requests.get(url)
+    data = response.text
+    json_data = json.loads(data)
+    json_data_total = json_data["total"]
+    number_of_ads = list(json_data_total.values())[0]
+    return number_of_ads
+
+def number_of_ads(ssyk_id, word = None):
+    base = "https://jobsearch.api.jobtechdev.se/search?"
+    end = "&limit=0"
+
+    regionId = "zdoY_6u5_Krt"
+
+    if word:
+        url = base + "occupation-group=" + ssyk_id + "&region=" + regionId + "&q=" + word + end
+    else:
+        url = base + "occupation-group=" + ssyk_id + "&region=" + regionId + end
+
+    number_of_ads = fetch_number_of_ads(url)
+    return number_of_ads
 
 def convert_text(text):
     text = text.strip()
@@ -33,83 +56,121 @@ def convert_text(text):
         text = re.sub(key, value, text)
     return text
 
-def create_links(name, id_groups, keywords = None):
+def create_links(name, id_group, keywords = None):
     #Multiple groups in Platsbanken - p=5:5qT8_z9d_8rw;5:J17g_Q2a_2u1
     #There seems to be a 255 character limit for the link and therefore it is difficult to add more than 10 words
 
-    weight = 1.2
+    regionId = "zdoY_6u5_Krt"
+    regionQuery = "&l=2:" + regionId
 
-    test = f"^{str(weight)}"
+    base = f"https://arbetsformedlingen.se/platsbanken/annonser?p=5:{id_group}&q="
+    baseAndName = base + "%20" + name + regionQuery
+    onlyName = f"https://arbetsformedlingen.se/platsbanken/annonser?&q={name}{regionQuery}"
+
+    if keywords:    
+        keywordsSearchable = []
+        for s in keywords:
+            s = convert_text(s)
+            keywordsSearchable.append(s)
+
+        baseAndFirstKeyword  = base + "%20" + keywordsSearchable[0] + regionQuery
+        baseAndSecondKeyword = base + "%20" + keywordsSearchable[1] + regionQuery
+        baseAndThirdKeyword = base + "%20" + keywordsSearchable[2] + regionQuery
+        baseAndFourthKeyword = base + "%20" + keywordsSearchable[3] + regionQuery
     
-    base = f"https://arbetsformedlingen.se/platsbanken/annonser?p=5:{id_groups[0]}&q="
-    
-    keywords_split = []
-    for s in keywords:
-        s = convert_text(s)
-        keywords_split.append(s)
+    else:
+        baseAndFirstKeyword = None
+        baseAndSecondKeyword = None
+        baseAndThirdKeyword = None
+        baseAndFourthKeyword = None
 
-    keywordsString = "%20".join(keywords_split)
-
-    baseAndName = base + "%20" + name
-    onlyName = f"https://arbetsformedlingen.se/platsbanken/annonser?&q={name}"
-
-    baseAndNameAndFirstKeyword = base + "%20" + name + "%20" + keywords_split[0]
-    baseAndNameAndSecondKeyword = base + "%20" + name + "%20" + keywords_split[1]
-
-    baseAndFirstKeyword  = base + "%20" + keywords_split[0]
-    baseAndSecondKeyword = base + "%20" + keywords_split[1]
-    baseAndThirdKeyword = base + "%20" + keywords_split[2]
-    baseAndFourthKeyword = base + "%20" + keywords_split[3]
-
-    links = [base, onlyName, baseAndName, baseAndFirstKeyword, baseAndSecondKeyword, baseAndThirdKeyword, baseAndFourthKeyword]
+    links = [base + regionQuery, onlyName, baseAndName, baseAndFirstKeyword, baseAndSecondKeyword, baseAndThirdKeyword, baseAndFourthKeyword]
     
     return links 
 
 
 def post_selected_occupation(nameOccupation, idOccupation):
-    ssykId = st.session_state.occupations_ssyk_level_4.get(idOccupation)
-    similar = st.session_state.similar_occupations.get(idOccupation)
-    keywords = st.session_state.occupation_keywords.get(idOccupation)
+    ssykInfo = st.session_state.occupations_ssyk_level_4.get(idOccupation)
+    ssykId = ssykInfo["ssyk_id"]
+    ssykName = ssykInfo["ssyk_name"]
 
-    match = re.match(r"^(.*?)\s*\(", nameOccupation)
-    if match:
-        name = match.group(1)
-    else:
-        name = nameOccupation
+    st.write("För att göra det lite mer realistiskt sker alla sökningar i Västra Götalands län")
+
+    if ssykId:
+        similar = st.session_state.similar_occupations.get(idOccupation)
+        keywords = st.session_state.occupation_keywords.get(idOccupation)
+
+        match = re.match(r"^(.*?)\s*\(", nameOccupation)
+        if match:
+            name = match.group(1)
+        else:
+            name = nameOccupation
 
 
-    if keywords:
-        links = create_links(name, [ssykId], keywords)
+        if keywords:
+            links = create_links(name, [ssykId], keywords)
 
-        a, b = st.columns(2)
+            a, b = st.columns(2)
 
-        a.link_button(f"Yrkesgrupp", links[0], icon = ":material/link:")
+            a.write("**Utifrån vald yrkesgrupp och valt yrke**")
+            b.write("**Utifrån vald yrkesgrupp**")
 
-        b.link_button(f"Valt yrke/jobbtitel", links[1], icon = ":material/link:")        
+            adsGroup = number_of_ads(ssykId, None)
+            adsGroupAndSelectedName = number_of_ads(ssykId, name)
 
-        a.link_button(f"Yrkesgrupp och valt yrke/jobbtitel", links[2], icon = ":material/link:")        
+            a.link_button(f"{ssykName} och *{name}* ({adsGroupAndSelectedName})", links[2], icon = ":material/link:")  
 
-        st.divider()
+            b.link_button(f"{ssykName} ({adsGroup})", links[0], icon = ":material/link:")      
 
-        c, d = st.columns(2)
-        
-        c.link_button(f"Yrkesgrupp och valt nyckelord ({keywords[0]})", links[3], icon = ":material/link:")
+            st.write("**Utifrån vald yrkesgrupp och ett relevant nyckelord**")
 
-        d.link_button(f"Yrkesgrupp och valt nyckelord ({keywords[1]})", links[4], icon = ":material/link:")
+            c, d = st.columns(2)
 
-        c.link_button(f"Yrkesgrupp och valt nyckelord ({keywords[2]})", links[5], icon = ":material/link:")
+            adsGroupAndWord1 = number_of_ads(ssykId, keywords[0])
+            adsGroupAndWord2 = number_of_ads(ssykId, keywords[1])
+            adsGroupAndWord3 = number_of_ads(ssykId, keywords[2])
+            adsGroupAndWord4 = number_of_ads(ssykId, keywords[3])
+            
+            c.link_button(f"{ssykName} och *{keywords[0]}* ({adsGroupAndWord1})", links[3], icon = ":material/link:")
 
-        d.link_button(f"Yrkesgrupp och valt nyckelord ({keywords[3]})", links[6], icon = ":material/link:")
+            d.link_button(f"{ssykName} och *{keywords[1]}* ({adsGroupAndWord2})", links[4], icon = ":material/link:")
 
-    if similar:
-        st.divider()
-        st.header("Närliggande yrken")
+            c.link_button(f"{ssykName} och *{keywords[2]}* ({adsGroupAndWord3})", links[5], icon = ":material/link:")
 
-        for nameSimilar, id in similar.items():
-            ssykIdSimilar = st.session_state.occupations_ssyk_level_4.get(id)
-            keywordsSimilar = st.session_state.occupation_keywords.get(id)
-            linksSimilar = create_links(nameSimilar, [ssykIdSimilar], keywordsSimilar)
-            st.link_button(nameSimilar, linksSimilar[2], icon = ":material/link:")
+            d.link_button(f"{ssykName} och *{keywords[3]}* ({adsGroupAndWord4})", links[6], icon = ":material/link:")
+
+        if similar:
+            st.header("Närliggande yrken")
+
+            similarWithMostAds = {}
+
+            for nameSimilar, id in similar.items():
+                ssykInfoSimilar = st.session_state.occupations_ssyk_level_4.get(id)
+                ssykIdSimilar = ssykInfoSimilar["ssyk_id"]
+                ssykNameSimilar = ssykInfoSimilar["ssyk_name"]
+                if ssykIdSimilar:
+                    linksSimilar = create_links(nameSimilar, ssykIdSimilar, None)
+                    adsSimilarOccupation = number_of_ads(ssykIdSimilar, nameSimilar)
+                    adsSimilarGroup = number_of_ads(ssykIdSimilar, None)
+
+                    similarWithMostAds[nameSimilar] = {
+                        "ads": adsSimilarOccupation,
+                        "adsGroup": adsSimilarGroup,
+                        "linkGroup": linksSimilar[0],
+                        "groupName": ssykNameSimilar,
+                        "linkGroupAndName": linksSimilar[2]}
+                    
+            similarWithMostAds = dict(sorted(similarWithMostAds.items(), key = lambda item: item[1]["ads"], reverse = True)[:5])
+
+            e, f = st.columns(2)
+
+            e.write("**Utifrån närliggande yrkesgrupp och yrke**")
+            f.write("**Utifrån närliggande yrkesgrupp**")
+
+            for nameSimilar, information in similarWithMostAds.items():
+                e.link_button(f"{information['groupName']} och *{nameSimilar}* ({information['ads']})", information["linkGroupAndName"], icon = ":material/link:")
+
+                f.link_button(f"{information['groupName']} ({information['adsGroup']})", information["linkGroup"], icon = ":material/link:")
 
 def choose_occupation_name():
     show_initial_information()
