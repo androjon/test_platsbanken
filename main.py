@@ -38,6 +38,7 @@ def number_of_ads(ssyk_id, word = None):
     regionId = "zdoY_6u5_Krt"
 
     if word:
+        word = word.replace(",", "%2B").replace(" ", "")
         url = base + "occupation-group=" + ssyk_id + "&region=" + regionId + "&q=" + word + end
     else:
         url = base + "occupation-group=" + ssyk_id + "&region=" + regionId + end
@@ -59,6 +60,17 @@ def convert_text(text):
 def create_links(name, id_group, keywords = None):
     #Multiple groups in Platsbanken - p=5:5qT8_z9d_8rw;5:J17g_Q2a_2u1
     #There seems to be a 255 character limit for the link and therefore it is difficult to add more than 10 words
+
+    #Går fortfarande inte att hitta flera olika Maskinoperatörer (Maskinoperatör, tobaksindustri/läkemedel och så vidare). Antagligen eftersom den inte söker i taxonomivärdena utan bara i rubrik och text.
+
+    #För att exkludera går det att använda projektledare -it
+    #https://arbetsformedlingen.se/platsbanken/annonser?q=projektledare%20-it
+
+    #projektledare AND ("utvecklare" OR "it") -junior
+    #https://arbetsformedlingen.se/platsbanken/annonser?q=projektledare%20AND%20(%22utvecklare%22%20OR%20%22it%22)%20-junior
+
+    #%2B = +
+    name = name.replace(",", "%2B").replace(" ", "")
 
     regionId = "zdoY_6u5_Krt"
     regionQuery = "&l=2:" + regionId
@@ -94,7 +106,7 @@ def post_selected_occupation(nameOccupation, idOccupation):
     ssykId = ssykInfo["ssyk_id"]
     ssykName = ssykInfo["ssyk_name"]
 
-    st.write("För att göra det lite mer realistiskt sker alla sökningar i Västra Götalands län")
+    st.write("För att göra det lite mer realistiskt sker alla sökningar i **Västra Götalands län**")
 
     if ssykId:
         similar = st.session_state.similar_occupations.get(idOccupation)
@@ -108,7 +120,7 @@ def post_selected_occupation(nameOccupation, idOccupation):
 
 
         if keywords:
-            links = create_links(name, [ssykId], keywords)
+            links = create_links(name, ssykId, keywords)
 
             a, b = st.columns(2)
 
